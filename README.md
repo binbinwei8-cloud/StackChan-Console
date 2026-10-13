@@ -348,6 +348,8 @@ STACKCHAN_QWEN_VOICE=longanlingxin
 
 The model WebSocket connection is made by the desktop daemon; the key is never sent to the WebUI or robot. The robot must run firmware advertising the `voiceChatPcm` capability. The microphone sends 16 kHz mono PCM to the daemon, and the robot plays 24 kHz mono PCM from Qwen. Voice audio and transcripts are kept only in memory. Qwen limits each real-time session to 120 minutes; the daemon opens a new session if the chat toggle remains on.
 
+In the WebUI's **千问设置**, choose Qwen3.8 Omni Flash Realtime, Qwen3.5 Omni Plus Realtime, or Qwen3.5 Omni Flash Realtime, and turn web search on or off. These are the supported audio-in/audio-out Realtime models; ordinary text Qwen models cannot use this microphone and speaker stream. Changing either setting while chatting starts a new Qwen session. The choices are stored in the ignored local `logs/voice-chat-settings.json` file (override with `STACKCHAN_QWEN_SETTINGS_FILE`); only the model ID and search toggle are saved. The API key remains in `.env` and is never returned by the WebUI. Web search is off by default, and when enabled the model decides whether to search. Search use may be billed separately by Model Studio. See the [official Realtime search guide](https://help.aliyun.com/zh/model-studio/realtime#%E8%81%94%E7%BD%91%E6%90%9C%E7%B4%A2).
+
 On Windows PowerShell, run commands from the repository directory with `npm.cmd` (for example `npm.cmd run dev`) so PowerShell does not try to load the blocked `npm.ps1` script.
 
 Do not commit real pairing tokens or provider API keys.
@@ -436,4 +438,3 @@ This is an experimental local hardware/software project for macOS plus M5Stack S
 ## License
 
 MIT for StackChan Local project code unless a subdirectory or managed dependency states otherwise.
-

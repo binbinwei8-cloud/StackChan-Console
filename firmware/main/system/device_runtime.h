@@ -1,0 +1,241 @@
+/*
+ * SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+ *
+ * SPDX-License-Identifier: MIT
+ */
+#pragma once
+#include <memory>
+#include <cstdint>
+#include <string>
+#include <lvgl.h>
+#include <functional>
+#include <smooth_ui_toolkit.hpp>
+#include <uitk/short_namespace.hpp>
+#include <smooth_lvgl.hpp>
+#include <array>
+#include <vector>
+#include <lvgl_image.h>
+#include <string_view>
+#include <hardware/sensors/hardware_status.h>
+
+/**
+ * @brief
+ *
+ */
+struct WsTextMessage_t {
+    std::string name;
+    std::string content;
+};
+
+struct WsReactMessage_t {
+    std::string emotion;
+    uint32_t durationMs = 2000;
+    std::string avatarJson;
+    std::string rgbJson;
+};
+
+/**
+ * @brief
+ *
+ */
+enum class AppConfigEvent {
+    None = 0,
+    AppConnected,
+    AppDisconnected,
+    TryWifiConnect,
+    WifiConnectFailed,
+    WifiConnected,
+};
+
+/**
+ * @brief
+ *
+ */
+enum class CommonLogLevel {
+    Info = 0,
+    Warning,
+    Error,
+};
+
+/**
+ * @brief
+ *
+ */
+enum class WifiStatus {
+    None = 0,
+    Low,
+    Medium,
+    High,
+};
+
+/**
+ * @brief
+ *
+ */
+class BootLogo {
+public:
+    BootLogo()
+    {
+        _panel = std::make_unique<uitk::lvgl_cpp::Container>(lv_screen_active());
+        _panel->setSize(320, 240);
+        _panel->setAlign(LV_ALIGN_CENTER);
+        _panel->setBorderWidth(0);
+        _panel->setBgOpa(0);
+        _panel->setPaddingAll(0);
+
+        _label_logo = std::make_unique<uitk::lvgl_cpp::Label>(_panel->get());
+        _label_logo->setTextFont(&lv_font_montserrat_24);
+        _label_logo->setTextColor(lv_color_hex(0xFFFFFF));
+        _label_logo->align(LV_ALIGN_CENTER, 0, -14);
+        _label_logo->setText("STACKCHAN");
+
+        _label_msg = std::make_unique<uitk::lvgl_cpp::Label>(_panel->get());
+        _label_msg->setTextFont(&lv_font_montserrat_16);
+        _label_msg->setTextColor(lv_color_hex(0xBFBFBF));
+        _label_msg->align(LV_ALIGN_CENTER, 0, 14);
+        _label_msg->setText("Starting up ...");
+
+        _label_version = std::make_unique<uitk::lvgl_cpp::Label>(_panel->get());
+        _label_version->setTextFont(&lv_font_montserrat_14);
+        _label_version->setTextColor(lv_color_hex(0x8B8B8B));
+        _label_version->align(LV_ALIGN_BOTTOM_RIGHT, -7, -6);
+        _label_version->setText("V" FIRMWARE_VERSION);
+    }
+
+private:
+    std::unique_ptr<uitk::lvgl_cpp::Container> _panel;
+    std::unique_ptr<uitk::lvgl_cpp::Label> _label_logo;
+    std::unique_ptr<uitk::lvgl_cpp::Label> _label_msg;
+    std::unique_ptr<uitk::lvgl_cpp::Label> _label_version;
+};
+
+/**
+ * @brief
+ *
+ */
+class DeviceRuntime {
+public:
+    void init();
+
+    /* --------------------------------- System --------------------------------- */
+    void delay(std::uint32_t ms);
+    std::uint32_t millis();
+    void feedTheDog();
+    std::array<uint8_t, 6> getFactoryMac();
+    std::string getFactoryMacString(std::string divider = "");
+    void reboot();
+    void powerOff();
+    void updateHeapStatusLog();
+    uint8_t getBatteryLevel();
+    bool isBatteryCharging();
+    void factoryReset();
+
+    /* --------------------------------- Display -------------------------------- */
+    lv_indev_t* lvTouchpad = nullptr;
+    std::unique_ptr<BootLogo> bootLogo;
+    void lvglLock();
+    void lvglUnlock();
+    void setBackLightBrightness(uint8_t brightness, bool permanent = false);
+    uint8_t getBackLightBrightness();
+
+    /* ----------------------------------- BLE ---------------------------------- */
+    uitk::Signal<const char*> onBleMotionData;
+    uitk::Signal<const char*> onBleAvatarData;
+    uitk::Signal<const char*> onBleConfigData;
+    uitk::Signal<const char*> onBleRgbData;
+    uitk::Signal<AppConfigEvent> onAppConfigEvent;
+
+    void startBleServer();
+    bool isBleConnected();
+    void startAppConfigServer();
+    bool isAppConfiged();
+    void resetAppConfiged();
+
+    /* --------------------------------- HeadPet -------------------------------- */
+    uitk::Signal<HeadPetGesture> onHeadPetGesture;
+    LocalHeadTouchSnapshot getLocalHeadTouchSnapshot();
+
+    /* ----------------------------------- RGB ---------------------------------- */
+    void setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b);
+    void showRgbColor(uint8_t r, uint8_t g, uint8_t b);
+    void refreshRgb();
+
+    /* ---------------------------------- Power --------------------------------- */
+    void setServoPowerEnabled(bool enabled);
+    bool isServoPowerEnabled();
+    bool isIoExpanderAvailable();
+
+    /* ---------------------------- Local Companion ---------------------------- */
+    uitk::Signal<const WsTextMessage_t&> onWsTextMessage;
+    uitk::Signal<const WsReactMessage_t&> onWsReactMessage;
+    uitk::Signal<std::string_view> onWsDanceData;
+    uitk::Signal<const char*> onLocalCompanionActivity;
+    uitk::Signal<const LocalFaceTrackingControlEvent&> onFaceTrackingControlEvent;
+
+    void startLocalCompanionService(std::function<void(std::string_view)> onStartLog);
+    LocalCompanionState getLocalCompanionState();
+    LocalFaceTrackingTarget getLocalFaceTrackingTarget();
+
+    /* ----------------------------------- IMU ---------------------------------- */
+    uitk::Signal<ImuMotionEvent> onImuMotionEvent;
+    LocalImuSnapshot getLocalImuSnapshot();
+
+    /* ---------------------------------- Time ---------------------------------- */
+    void syncRtcTimeToSystem();
+    void syncSystemTimeToRtc();
+    void setTimezone(std::string_view tz);
+    std::string getTimezone();
+
+    /* ------------------------------- Warm Reboot ------------------------------ */
+    void requestWarmReboot(int appIndex);
+    int getWarmRebootTarget();
+    void clearWarmRebootRequest();
+
+    /* --------------------------------- Network -------------------------------- */
+    void startNetwork(std::function<void(std::string_view)> onLog);
+    WifiStatus getWifiStatus();
+    void startSntp();
+
+    /* ---------------------------------- Audio --------------------------------- */
+    void setSpeakerVolume(uint8_t volume, bool permanent = false);
+    uint8_t getSpeakerVolume();
+    std::string startMicTest(std::function<void(MicTestStatus)> onStatusUpdate);
+    void getMicWaveformFrame(std::vector<int16_t>& data);
+    LocalMicLevelSnapshot getMicLevelSnapshot();
+    void releaseMicLevelInput();
+    void clearupMicTest();
+    LocalPeripheralProbeSnapshot getLocalLtr553Snapshot();
+    LocalPeripheralProbeSnapshot getLocalPeripheralProbeSnapshot();
+    bool pollLocalNfcEvent(LocalNfcEvent& event);
+    bool pollLocalIrEvent(LocalIrEvent& event);
+
+private:
+    void board_init();
+    void lvgl_init();
+    void ble_init(bool useAltUuid);
+    void servo_init();
+    void head_touch_init();
+    void io_expander_init();
+    void imu_init();
+    void rtc_init();
+    void peripheral_probe_init();
+    void recordI2cDiagnosticScan(std::string_view stage);
+};
+
+DeviceRuntime& GetDeviceRuntime();
+
+/**
+ * @brief
+ *
+ */
+class LvglLockGuard {
+public:
+    LvglLockGuard()
+    {
+        GetDeviceRuntime().lvglLock();
+    }
+    ~LvglLockGuard()
+    {
+        GetDeviceRuntime().lvglUnlock();
+    }
+};

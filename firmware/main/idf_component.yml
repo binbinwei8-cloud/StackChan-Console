@@ -1,0 +1,46 @@
+## IDF Component Manager Manifest File
+##
+## StackChan Local targets only M5Stack StackChan on ESP32-S3. Keep this
+## manifest focused on the hardware and local companion runtime instead of the
+## full upstream multi-board dependency set.
+dependencies:
+  bblanchon/arduinojson: ==7.4.2
+
+  mooncake:
+    git: https://github.com/Forairaaaaa/mooncake.git
+    version: v2.3.3
+  mooncake_log:
+    git: https://github.com/Forairaaaaa/mooncake_log.git
+    version: v1.5.0
+  smooth_ui_toolkit:
+    git: https://github.com/Forairaaaaa/smooth_ui_toolkit.git
+    version: v2.12.0
+
+  78/esp-wifi-connect: ~3.1.1
+  78/xiaozhi-fonts: ~1.6.0
+
+  espressif/button: ~4.1.5
+  espressif/esp-sr: ~2.3.0
+  espressif/esp_audio_codec: ~2.4.1
+  espressif/esp_audio_effects: ~1.2.1
+  espressif/esp_codec_dev: ~1.5.4
+  espressif/esp_image_effects:
+    version: ^1.0.1
+    rules:
+    - if: target not in [esp32]
+  espressif/esp_lcd_ili9341: ==1.2.0
+  espressif/esp_mmap_assets: '>=1.2'
+  espressif/esp_new_jpeg: ^0.6.1
+  espressif/esp_video:
+    version: ==1.3.1
+    rules:
+    - if: target in [esp32s3]
+  espressif/esp_websocket_client: ^1.5.0
+  espressif/led_strip: ~3.0.2
+  espressif/mdns: ^1.11.1
+
+  esp_lvgl_port: ~2.7.0
+  lvgl/lvgl: ~9.4.0
+
+  idf:
+    version: '>=5.5.2'
