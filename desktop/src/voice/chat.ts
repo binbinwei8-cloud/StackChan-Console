@@ -11,7 +11,9 @@ import { DEFAULT_QWEN_REALTIME_MODEL, isQwenRealtimeModel, QWEN_REALTIME_MODELS,
 
 const INPUT_FRAME_BYTES = 1280; // 40 ms, 16 kHz mono s16le
 const OUTPUT_FRAME_BYTES = 1920; // 40 ms, 24 kHz mono s16le
-const MAX_OUTPUT_BUFFER_BYTES = 480_000; // ten seconds
+const MAX_OUTPUT_BUFFER_BYTES = 2_880_000; // one minute of 24 kHz mono s16le
+const PAUSE_QWEN_AT_BYTES = 480_000; // ten seconds
+const RESUME_QWEN_AT_BYTES = 240_000; // five seconds
 const MAX_WS_BUFFER_BYTES = 256_000;
 
 export type VoiceChatState = "off" | "connecting" | "listening" | "thinking" | "speaking" | "announcement" | "reconnecting" | "error";
@@ -43,6 +45,7 @@ export class QwenVoiceChatService {
   private reason?: string;
   private device?: DeviceSession;
   private qwen?: WebSocket;
+  private qwenReadPaused = false;
   private streamId = "";
   private expectedMicSeq = 0;
   private resumeCamera?: () => void;
@@ -215,6 +218,7 @@ export class QwenVoiceChatService {
     this.enabled = false;
     this.generation++;
     this.clearTimers();
+    this.resumeQwenRead();
     this.qwen?.close();
     this.qwen = undefined;
     await this.stopMic().catch(() => undefined);
@@ -295,6 +299,7 @@ export class QwenVoiceChatService {
       perMessageDeflate: false
     });
     this.qwen = socket;
+    this.qwenReadPaused = false;
     await new Promise<void>((resolve, reject) => {
       let ready = false;
       let settled = false;
@@ -435,7 +440,17 @@ export class QwenVoiceChatService {
       return;
     }
     this.speakerBuffer = Buffer.concat([this.speakerBuffer, data]);
+    if (!this.qwenReadPaused && this.speakerBuffer.byteLength >= PAUSE_QWEN_AT_BYTES && this.qwen?.readyState === WebSocket.OPEN) {
+      this.qwen.pause();
+      this.qwenReadPaused = true;
+    }
     if (!this.speakerRequestId && !this.speakerStarting) void this.startSpeaker();
+  }
+
+  private resumeQwenRead(): void {
+    if (!this.qwenReadPaused) return;
+    this.qwenReadPaused = false;
+    if (this.qwen?.readyState === WebSocket.OPEN) this.qwen.resume();
   }
 
   private async startSpeaker(): Promise<void> {
@@ -469,6 +484,7 @@ export class QwenVoiceChatService {
       }
       const chunk = this.speakerBuffer.subarray(0, frameBytes);
       this.speakerBuffer = this.speakerBuffer.subarray(frameBytes);
+      if (this.speakerBuffer.byteLength <= RESUME_QWEN_AT_BYTES) this.resumeQwenRead();
       this.device.ws.send(encodeStackChanBinaryPcmFrame("speakerPcm", {
         streamId: this.speakerRequestId,
         seq: this.speakerSeq++,
@@ -495,6 +511,7 @@ export class QwenVoiceChatService {
   }
 
   private resetTurn(): void {
+    this.resumeQwenRead();
     if (this.speakerTimer) clearInterval(this.speakerTimer);
     this.speakerTimer = undefined;
     this.speakerRequestId = undefined;
@@ -535,6 +552,7 @@ export class QwenVoiceChatService {
     this.logger.warn("voice chat reconnecting", { reason });
     this.setState("reconnecting", reason);
     this.generation++;
+    this.resumeQwenRead();
     this.qwen?.close();
     this.qwen = undefined;
     await this.stopMic().catch(() => undefined);

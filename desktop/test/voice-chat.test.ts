@@ -111,7 +111,7 @@ describe("QwenVoiceChatService", () => {
     await vi.waitFor(() => expect(service?.snapshot().state).toBe("reconnecting"));
     await vi.waitFor(() => expect(service?.snapshot().sessionNumber).toBe(2), { timeout: 4000 });
     await vi.waitFor(() => expect(service?.snapshot().state).toBe("listening"));
-    peer!.send(JSON.stringify({ type: "response.audio.delta", delta: Buffer.alloc(480_002).toString("base64") }));
+    peer!.send(JSON.stringify({ type: "response.audio.delta", delta: Buffer.alloc(2_880_002).toString("base64") }));
     await vi.waitFor(() => expect(service?.snapshot().state).toBe("reconnecting"));
     expect(pcmPlaybackStart).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(service?.snapshot().sessionNumber).toBe(3), { timeout: 4000 });
@@ -124,7 +124,9 @@ describe("QwenVoiceChatService", () => {
     const port = (server.address() as { port: number }).port;
     const urls: string[] = [];
     const sessions: Record<string, unknown>[] = [];
+    let peer: WebSocket | undefined;
     server.on("connection", (socket) => {
+      peer = socket;
       socket.send(JSON.stringify({ type: "session.created" }));
       socket.on("message", (raw) => {
         const event = JSON.parse(raw.toString()) as { type: string; session?: Record<string, unknown> };
@@ -149,7 +151,13 @@ describe("QwenVoiceChatService", () => {
       onEvent: () => () => undefined
     } as unknown as DeviceRegistry;
     const setMicStream = vi.fn().mockResolvedValue({ sent: true, ack: { status: "accepted" } });
-    const controller = { setMicStream, pcmPlaybackAbort: vi.fn() } as unknown as RobotController;
+    const pcmPlaybackAbort = vi.fn().mockResolvedValue({ sent: true, ack: { status: "accepted" } });
+    const controller = {
+      setMicStream,
+      pcmPlaybackStart: vi.fn().mockResolvedValue({ sent: true, ack: { status: "accepted" } }),
+      pcmPlaybackEnd: vi.fn().mockResolvedValue({ sent: true, ack: { status: "accepted" } }),
+      pcmPlaybackAbort
+    } as unknown as RobotController;
     const resumeCamera = vi.fn();
     service = new QwenVoiceChatService(config, registry, controller,
       { pauseCamera: vi.fn().mockResolvedValue(resumeCamera) }, logger,
@@ -174,5 +182,12 @@ describe("QwenVoiceChatService", () => {
       { pauseCamera: vi.fn().mockResolvedValue(resumeCamera) }, logger);
     expect(reloaded.snapshot().model).toBe("qwen3.5-omni-plus-realtime");
     expect(reloaded.snapshot().searchEnabled).toBe(true);
+
+    // A long answer may arrive much faster than the robot can play it.
+    peer!.send(JSON.stringify({ type: "response.audio.delta", delta: Buffer.alloc(600_000).toString("base64") }));
+    await vi.waitFor(() => expect(service?.snapshot().state).toBe("speaking"));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(service.snapshot().state).toBe("speaking");
+    expect(pcmPlaybackAbort).not.toHaveBeenCalled();
   });
 });
